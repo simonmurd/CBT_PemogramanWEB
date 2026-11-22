@@ -1,0 +1,6 @@
+{
+  "name": "EvalWeb TJKT — CBT Pemrograman Web",
+  "description": "Aplikasi Ujian Computer-Based Test (CBT) Mata Pelajaran Pemrograman Web Kelas XI TKJ/TJKT berbasis LKPD 1–5 dengan 5 Paket Soal Setara, Enkripsi AES-256-GCM, dan Portal Dekripsi Guru.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
