@@ -35,7 +35,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           className="flex items-center gap-2 text-left text-lg font-semibold tracking-tight text-slate-900 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 rounded-md"
         >
           <ShieldCheck className="h-5 w-5 text-blue-700 shrink-0" aria-hidden="true" />
-          <span className="font-display">EvalWeb TJKT</span>
+          <span className="font-display">Simon Murdani Yusuf</span>
         </button>
 
         {/* Zone 2: Concise Navigation Links */}

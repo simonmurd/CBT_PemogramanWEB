@@ -229,7 +229,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
                 id="select-school"
                 value={selectedSchool}
                 onChange={(e) => handleSchoolChange(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 transition-colors focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 sm:py-2.5 text-base sm:text-sm text-slate-900 transition-colors focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
               >
                 <option value="">-- Pilih Asal Sekolah --</option>
                 {schools.map((school) => (
@@ -253,7 +253,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
                 value={selectedClass}
                 onChange={(e) => handleClassChange(e.target.value)}
                 disabled={!selectedSchool}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 transition-colors disabled:bg-slate-100 disabled:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 sm:py-2.5 text-base sm:text-sm text-slate-900 transition-colors disabled:bg-slate-100 disabled:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
               >
                 <option value="">
                   {selectedSchool ? '-- Pilih Kelas / Jurusan --' : '-- Pilih Sekolah Terlebih Dahulu --'}
@@ -279,7 +279,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
                 value={selectedStudentId}
                 onChange={(e) => handleStudentChange(e.target.value)}
                 disabled={!selectedClass}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 transition-colors disabled:bg-slate-100 disabled:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 sm:py-2.5 text-base sm:text-sm text-slate-900 transition-colors disabled:bg-slate-100 disabled:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
               >
                 <option value="">
                   {selectedClass
@@ -349,7 +349,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
                     }}
                     placeholder="Masukkan token ujian (misal: WEBXI-2026)"
                     autoComplete="off"
-                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-4 font-mono text-sm uppercase tracking-wider text-slate-900 transition-colors focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white py-3 sm:py-2.5 pl-10 pr-4 font-mono text-base sm:text-sm uppercase tracking-wider text-slate-900 transition-colors focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   />
                 </div>
                 <button

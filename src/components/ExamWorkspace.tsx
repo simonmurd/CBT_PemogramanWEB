@@ -6,8 +6,10 @@ import {
   CheckCircle2,
   Clock,
   Flag,
+  LayoutGrid,
   Send,
   ShieldAlert,
+  X,
 } from 'lucide-react';
 import { SUBJECT_NAME } from '../config/examConfig';
 import { OptionLetter, PacketCode, ShuffledQuestion, Student } from '../types/cbt';
@@ -57,6 +59,7 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
   );
   const [showViolationModal, setShowViolationModal] = useState<boolean>(false);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [showMobileGrid, setShowMobileGrid] = useState<boolean>(false);
 
   const timeoutTriggeredRef = useRef<boolean>(false);
   const lastViolationTimestampRef = useRef<number>(0);
@@ -77,8 +80,16 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
     return () => window.clearInterval(interval);
   }, [endTimestamp, isSubmitting, onSubmitExam]);
 
-  // Deteksi perpindahan tab/jendela dengan debounce 1500ms agar tidak terhitung ganda
+  // Deteksi perpindahan tab/jendela dengan debounce 1500ms & perlindungan iframe Blogger
   useEffect(() => {
+    const isEmbeddedIframe = (() => {
+      try {
+        return window.self !== window.top;
+      } catch {
+        return true;
+      }
+    })();
+
     const triggerViolation = () => {
       if (isSubmitting || timeoutTriggeredRef.current) return;
       const now = Date.now();
@@ -97,7 +108,16 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
     };
 
     const handleWindowBlur = () => {
-      triggerViolation();
+      if (isEmbeddedIframe) {
+        // Saat di-embed di Blogger, abaikan blur ringan jika tab browser masih aktif (misal klik area blog)
+        window.setTimeout(() => {
+          if (document.hidden) {
+            triggerViolation();
+          }
+        }, 250);
+      } else {
+        triggerViolation();
+      }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -136,14 +156,78 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
   const isWarningTime = remainingSeconds <= 600 && remainingSeconds > 180;
   const isCriticalTime = remainingSeconds <= 180;
 
+  const handleJumpToQuestion = (idx: number) => {
+    onChangeIndex(idx);
+    setShowMobileGrid(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const renderNumberMatrix = () => (
+    <div className="space-y-4">
+      {questionGroups.map((group) => (
+        <div key={group.label}>
+          <div className="mb-1.5 text-xs font-semibold text-slate-500 tabular-nums">
+            {group.label}
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {group.items.map((q) => {
+              const idx = q.displayNumber - 1;
+              const isActive = idx === currentIndex;
+              const isAnswered = Boolean(answers[q.questionId]);
+              const isItemDoubt = doubtIds.includes(q.questionId);
+
+              let btnStyle =
+                'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50';
+              if (isItemDoubt) {
+                btnStyle = 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100';
+              } else if (isAnswered) {
+                btnStyle =
+                  'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100';
+              }
+
+              return (
+                <button
+                  key={q.questionId}
+                  type="button"
+                  onClick={() => handleJumpToQuestion(idx)}
+                  aria-label={`Soal ${q.displayNumber}${
+                    isItemDoubt ? ', Ragu-ragu' : isAnswered ? ', Sudah dijawab' : ', Belum dijawab'
+                  }`}
+                  className={`relative flex h-11 sm:h-10 items-center justify-center rounded-lg border font-mono text-xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${btnStyle} ${
+                    isActive ? 'ring-2 ring-blue-700 ring-offset-1 border-blue-700' : ''
+                  }`}
+                >
+                  <span>{q.displayNumber}</span>
+                  {isItemDoubt ? (
+                    <Flag
+                      className="absolute right-1 top-1 h-2.5 w-2.5 fill-amber-500 text-amber-600"
+                      aria-hidden="true"
+                    />
+                  ) : isAnswered ? (
+                    <span
+                      className="absolute right-1 top-1 text-[9px] font-bold text-emerald-700"
+                      aria-hidden="true"
+                    >
+                      {answers[q.questionId]}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-slate-50 pb-12">
-      {/* Sticky Exam Workspace Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          {/* Left: School, Subject, Packet & Student Identity */}
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-medium text-slate-500">
+    <div className="min-h-screen bg-slate-50 pb-24 lg:pb-12">
+      {/* Compact Sticky Exam Workspace Header (Mobile <= 58px, Desktop full metadata) */}
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
+          {/* Left: Compact on mobile, full on sm+ */}
+          <div className="min-w-0 flex-1">
+            <div className="hidden sm:flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-medium text-slate-500">
               <span className="truncate font-semibold text-slate-700">{student.sekolah}</span>
               <span aria-hidden="true">·</span>
               <span className="whitespace-nowrap">{SUBJECT_NAME}</span>
@@ -152,21 +236,27 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
                 Paket {packetCode}
               </span>
             </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm font-semibold text-slate-900">
+            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-900">
+              <span className="sm:hidden font-mono font-bold text-blue-700 shrink-0">
+                Pkt {packetCode}
+              </span>
+              <span className="sm:hidden text-slate-300" aria-hidden="true">
+                ·
+              </span>
               <span className="truncate">{student.nama}</span>
-              <span aria-hidden="true" className="text-slate-300">
+              <span aria-hidden="true" className="hidden sm:inline text-slate-300">
                 /
               </span>
-              <span className="font-mono text-xs text-slate-600 tabular-nums whitespace-nowrap">
+              <span className="hidden sm:inline font-mono text-xs text-slate-600 tabular-nums whitespace-nowrap">
                 {student.kelas} · Absen {student.noAbsen}
               </span>
             </div>
           </div>
 
           {/* Right: Tabular Timer & Submit Action */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div
-              className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 ${
+              className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 sm:px-3.5 sm:py-2 ${
                 isCriticalTime
                   ? 'border-red-300 bg-red-50 text-red-800'
                   : isWarningTime
@@ -174,10 +264,10 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
                     : 'border-slate-200 bg-slate-50 text-slate-900'
               }`}
             >
-              <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" aria-hidden="true" />
               <div className="flex items-baseline gap-1.5">
-                <span className="hidden sm:inline text-xs font-medium">Sisa Waktu</span>
-                <span className="font-mono text-base font-bold tabular-nums">
+                <span className="hidden md:inline text-xs font-medium">Sisa Waktu</span>
+                <span className="font-mono text-sm sm:text-base font-bold tabular-nums">
                   {formatSecondsMMSS(remainingSeconds)}
                 </span>
               </div>
@@ -187,22 +277,25 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
               type="button"
               onClick={() => setShowConfirmModal(true)}
               disabled={isSubmitting}
-              className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-50 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+              className="flex items-center gap-1.5 rounded-xl bg-blue-700 px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-50 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
             >
-              <Send className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>{isSubmitting ? 'Mengirim...' : 'Selesai & Kirim Ujian'}</span>
+              <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" aria-hidden="true" />
+              <span className="sm:hidden">{isSubmitting ? '...' : 'Kirim'}</span>
+              <span className="hidden sm:inline">
+                {isSubmitting ? 'Mengirim...' : 'Selesai & Kirim Ujian'}
+              </span>
             </button>
           </div>
         </div>
       </header>
 
       {/* Main 2-Column Exam Canvas */}
-      <div className="mx-auto mt-6 grid max-w-7xl grid-cols-1 gap-6 px-4 sm:px-6 lg:grid-cols-12 items-start">
+      <div className="mx-auto mt-4 sm:mt-6 grid max-w-7xl grid-cols-1 gap-6 px-3 sm:px-6 lg:grid-cols-12 items-start">
         {/* Left Zone: Active Question */}
-        <section className="lg:col-span-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-8 shadow-xs">
+        <section className="lg:col-span-8 rounded-2xl border border-slate-200 bg-white p-4 sm:p-8 shadow-xs">
           {/* Question Metadata Header */}
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+          <div className="mb-4 sm:mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3.5 sm:pb-4">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs font-medium text-slate-500">
               <span className="font-mono text-sm font-bold text-slate-900 tabular-nums">
                 Soal {activeQuestion.displayNumber} / {questions.length}
               </span>
@@ -215,26 +308,30 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
             {isDoubt && (
               <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
                 <Flag className="h-3.5 w-3.5 fill-amber-500 text-amber-600" aria-hidden="true" />
-                <span>Ditandai Ragu-Ragu</span>
+                <span>Ragu-Ragu</span>
               </div>
             )}
           </div>
 
           {/* Question Prompt */}
           <div className="space-y-4">
-            <p className="text-base sm:text-lg leading-relaxed font-medium text-slate-900">
+            <p className="text-[15px] sm:text-lg leading-relaxed font-medium text-slate-900">
               {activeQuestion.prompt}
             </p>
 
             {activeQuestion.codeSnippet && (
-              <pre className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 p-4 font-mono text-xs sm:text-sm leading-relaxed text-slate-100">
+              <pre className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 p-3.5 sm:p-4 font-mono text-xs sm:text-sm leading-relaxed text-slate-100">
                 <code>{activeQuestion.codeSnippet}</code>
               </pre>
             )}
           </div>
 
           {/* Radio Options A-E */}
-          <div className="mt-6 space-y-3" role="radiogroup" aria-label={`Pilihan soal ${activeQuestion.displayNumber}`}>
+          <div
+            className="mt-5 sm:mt-6 space-y-2.5 sm:space-y-3"
+            role="radiogroup"
+            aria-label={`Pilihan soal ${activeQuestion.displayNumber}`}
+          >
             {activeQuestion.options.map((opt) => {
               const isSelected = activeAnswer === opt.displayLetter;
               return (
@@ -244,7 +341,7 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
                   role="radio"
                   aria-checked={isSelected}
                   onClick={() => onSelectAnswer(activeQuestion.questionId, opt.displayLetter)}
-                  className={`flex w-full items-start gap-3.5 rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
+                  className={`flex w-full items-start gap-3 sm:gap-3.5 rounded-xl border p-3.5 sm:p-4 text-left transition-colors min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
                     isSelected
                       ? 'border-blue-600 bg-blue-50/70 text-slate-950'
                       : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50/80'
@@ -265,11 +362,11 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
             })}
           </div>
 
-          {/* Bottom Navigation Action Bar */}
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
+          {/* Desktop Action Bar (hidden on mobile; mobile uses thumb-friendly fixed bottom bar) */}
+          <div className="mt-8 hidden lg:flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
             <button
               type="button"
-              onClick={() => onChangeIndex(Math.max(0, currentIndex - 1))}
+              onClick={() => handleJumpToQuestion(Math.max(0, currentIndex - 1))}
               disabled={currentIndex === 0}
               className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 whitespace-nowrap shrink-0"
             >
@@ -296,7 +393,7 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
             {currentIndex < questions.length - 1 ? (
               <button
                 type="button"
-                onClick={() => onChangeIndex(Math.min(questions.length - 1, currentIndex + 1))}
+                onClick={() => handleJumpToQuestion(Math.min(questions.length - 1, currentIndex + 1))}
                 className="flex items-center gap-2 rounded-xl bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-800 whitespace-nowrap shrink-0"
               >
                 <span>Simpan & Lanjutkan</span>
@@ -315,8 +412,8 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
           </div>
         </section>
 
-        {/* Right Zone: 50-Number Navigation Panel */}
-        <aside className="lg:col-span-4 lg:sticky lg:top-24 space-y-5">
+        {/* Right Zone: Desktop 50-Number Navigation Panel */}
+        <aside className="hidden lg:block lg:col-span-4 lg:sticky lg:top-24 space-y-5">
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="mb-4 flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <h2 className="font-display text-base font-semibold text-slate-900">
@@ -327,7 +424,6 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
               </span>
             </div>
 
-            {/* Summary Stats Row */}
             <div className="mb-4 grid grid-cols-3 gap-2 text-center">
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-2 py-2">
                 <div className="font-mono text-base font-bold text-emerald-800 tabular-nums">
@@ -349,60 +445,7 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
               </div>
             </div>
 
-            {/* Grouped 5x10 Question Matrix */}
-            <div className="space-y-4">
-              {questionGroups.map((group) => (
-                <div key={group.label}>
-                  <div className="mb-1.5 text-xs font-semibold text-slate-500 tabular-nums">
-                    {group.label}
-                  </div>
-                  <div className="grid grid-cols-5 gap-1.5">
-                    {group.items.map((q) => {
-                      const idx = q.displayNumber - 1;
-                      const isActive = idx === currentIndex;
-                      const isAnswered = Boolean(answers[q.questionId]);
-                      const isItemDoubt = doubtIds.includes(q.questionId);
-
-                      let btnStyle =
-                        'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50';
-                      if (isItemDoubt) {
-                        btnStyle = 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100';
-                      } else if (isAnswered) {
-                        btnStyle =
-                          'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100';
-                      }
-
-                      return (
-                        <button
-                          key={q.questionId}
-                          type="button"
-                          onClick={() => onChangeIndex(idx)}
-                          aria-label={`Soal ${q.displayNumber}${isItemDoubt ? ', Ragu-ragu' : isAnswered ? ', Sudah dijawab' : ', Belum dijawab'}`}
-                          className={`relative flex h-10 items-center justify-center rounded-lg border font-mono text-xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${btnStyle} ${
-                            isActive ? 'ring-2 ring-blue-700 ring-offset-1 border-blue-700' : ''
-                          }`}
-                        >
-                          <span>{q.displayNumber}</span>
-                          {isItemDoubt ? (
-                            <Flag
-                              className="absolute right-1 top-1 h-2.5 w-2.5 fill-amber-500 text-amber-600"
-                              aria-hidden="true"
-                            />
-                          ) : isAnswered ? (
-                            <span
-                              className="absolute right-1 top-1 text-[9px] font-bold text-emerald-700"
-                              aria-hidden="true"
-                            >
-                              {answers[q.questionId]}
-                            </span>
-                          ) : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
+            {renderNumberMatrix()}
 
             {/* Legend */}
             <div className="mt-5 grid grid-cols-2 gap-2 border-t border-slate-100 pt-4 text-xs text-slate-600">
@@ -443,6 +486,110 @@ export const ExamWorkspace: React.FC<ExamWorkspaceProps> = ({
           </div>
         </aside>
       </div>
+
+      {/* Mobile Thumb-Friendly Fixed Bottom Navigation Bar */}
+      <nav
+        aria-label="Navigasi cepat soal mobile"
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-2.5 py-2 backdrop-blur-sm lg:hidden"
+      >
+        <div className="mx-auto grid max-w-xl grid-cols-4 gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleJumpToQuestion(Math.max(0, currentIndex - 1))}
+            disabled={currentIndex === 0}
+            className="flex h-11 items-center justify-center gap-1 rounded-xl border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700 disabled:opacity-40"
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>Prev</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onToggleDoubt(activeQuestion.questionId)}
+            className={`flex h-11 items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold ${
+              isDoubt
+                ? 'border-amber-400 bg-amber-50 text-amber-900'
+                : 'border-slate-300 bg-white text-slate-700'
+            }`}
+          >
+            <Flag
+              className={`h-3.5 w-3.5 shrink-0 ${
+                isDoubt ? 'fill-amber-500 text-amber-600' : 'text-slate-500'
+              }`}
+              aria-hidden="true"
+            />
+            <span>Ragu</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowMobileGrid(true)}
+            className="flex h-11 items-center justify-center gap-1 rounded-xl border border-slate-300 bg-slate-50 px-2 font-mono text-xs font-bold text-slate-800 tabular-nums"
+          >
+            <LayoutGrid className="h-3.5 w-3.5 shrink-0 text-blue-700" aria-hidden="true" />
+            <span>{stats.answeredCount}/50</span>
+          </button>
+
+          {currentIndex < questions.length - 1 ? (
+            <button
+              type="button"
+              onClick={() => handleJumpToQuestion(Math.min(questions.length - 1, currentIndex + 1))}
+              className="flex h-11 items-center justify-center gap-1 rounded-xl bg-blue-700 px-2 text-xs font-semibold text-white"
+            >
+              <span>Lanjut</span>
+              <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowConfirmModal(true)}
+              className="flex h-11 items-center justify-center gap-1 rounded-xl bg-emerald-700 px-2 text-xs font-semibold text-white"
+            >
+              <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>Selesai</span>
+            </button>
+          )}
+        </div>
+      </nav>
+
+      {/* Mobile Slide-Up Drawer: Peta 50 Soal */}
+      {showMobileGrid && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-xs lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Daftar nomor soal 1 sampai 50"
+        >
+          <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-display text-base font-bold text-slate-900">
+                  Pilih Nomor Soal (1–50)
+                </h3>
+                <p className="text-xs text-slate-500 tabular-nums">
+                  Terjawab {stats.answeredCount} · Ragu {stats.doubtCount} · Kosong{' '}
+                  {stats.unansweredCount}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMobileGrid(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                aria-label="Tutup daftar soal"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            {renderNumberMatrix()}
+
+            <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-700">
+              <span>Pelanggaran Fokus Tab</span>
+              <span className="font-mono font-bold tabular-nums">{tabViolations} kali</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Peringatan Pelanggaran Tab/Jendela */}
       {showViolationModal && (
