@@ -42,6 +42,7 @@ export interface ShuffledQuestion {
 export interface ExamProgressStorage {
   studentId: string;
   packetCode: PacketCode;
+  examDateKey?: string;
   tokenUjian: string;
   answers: Record<string, OptionLetter>; // questionId -> selected displayLetter
   doubtIds: string[]; // questionIds marked Ragu-Ragu

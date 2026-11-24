@@ -27,7 +27,7 @@ import {
 } from './types/cbt';
 import { submitExamToAppsScript } from './utils/appsScript';
 import { encryptExamResult } from './utils/crypto';
-import { buildStudentExamPaper } from './utils/prng';
+import { buildStudentExamPaper, getWibDateKey } from './utils/prng';
 
 function loadSavedProgress(): ExamProgressStorage | null {
   try {
@@ -35,6 +35,14 @@ function loadSavedProgress(): ExamProgressStorage | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as ExamProgressStorage;
     if (!parsed || !parsed.studentId || !parsed.endTimestamp) return null;
+
+    const savedDateKey = parsed.examDateKey || getWibDateKey(parsed.startTimestamp);
+    const todayDateKey = getWibDateKey();
+    // Jika sesi berasal dari hari berbeda dan waktunya sudah habis, bersihkan agar hari baru mendapat paket baru
+    if (savedDateKey !== todayDateKey && Date.now() > parsed.endTimestamp) {
+      localStorage.removeItem(STORAGE_KEYS.EXAM_PROGRESS);
+      return null;
+    }
     return parsed;
   } catch {
     return null;
@@ -57,6 +65,7 @@ export default function App() {
   // Active exam state
   const [activeStudent, setActiveStudent] = useState<Student | null>(null);
   const [packetCode, setPacketCode] = useState<PacketCode>('A');
+  const [examDateKey, setExamDateKey] = useState<string>(() => getWibDateKey());
   const [questions, setQuestions] = useState<ShuffledQuestion[]>([]);
   const [tokenUjian, setTokenUjian] = useState<string>('');
   const [answers, setAnswers] = useState<Record<string, OptionLetter>>({});
@@ -81,9 +90,12 @@ export default function App() {
     if (savedProgress) {
       const student = STUDENTS.find((s) => s.id === savedProgress.studentId);
       if (student) {
-        const paper = buildStudentExamPaper(student, QUESTION_BANK);
+        const sessionDateKey =
+          savedProgress.examDateKey || getWibDateKey(savedProgress.startTimestamp);
+        const paper = buildStudentExamPaper(student, QUESTION_BANK, sessionDateKey);
         setActiveStudent(student);
         setPacketCode(paper.packetCode);
+        setExamDateKey(sessionDateKey);
         setQuestions(paper.questions);
         setTokenUjian(savedProgress.tokenUjian);
         setAnswers(savedProgress.answers || {});
@@ -115,6 +127,7 @@ export default function App() {
     const snapshot: ExamProgressStorage = {
       studentId: activeStudent.id,
       packetCode,
+      examDateKey,
       tokenUjian,
       answers,
       doubtIds,
@@ -132,6 +145,7 @@ export default function App() {
     activeStudent,
     view,
     packetCode,
+    examDateKey,
     tokenUjian,
     answers,
     doubtIds,
@@ -143,11 +157,14 @@ export default function App() {
 
   const handleStartExam = (student: Student, token: string) => {
     const existing = loadSavedProgress();
-    const paper = buildStudentExamPaper(student, QUESTION_BANK);
+    const todayDateKey = getWibDateKey();
 
     if (existing && existing.studentId === student.id) {
+      const sessionDateKey = existing.examDateKey || getWibDateKey(existing.startTimestamp);
+      const paper = buildStudentExamPaper(student, QUESTION_BANK, sessionDateKey);
       setActiveStudent(student);
       setPacketCode(paper.packetCode);
+      setExamDateKey(sessionDateKey);
       setQuestions(paper.questions);
       setTokenUjian(token || existing.tokenUjian);
       setAnswers(existing.answers || {});
@@ -160,10 +177,12 @@ export default function App() {
       return;
     }
 
+    const paper = buildStudentExamPaper(student, QUESTION_BANK, todayDateKey);
     const now = Date.now();
     const durationMs = EXAM_DURATION_MINUTES * 60 * 1000;
     setActiveStudent(student);
     setPacketCode(paper.packetCode);
+    setExamDateKey(todayDateKey);
     setQuestions(paper.questions);
     setTokenUjian(token);
     setAnswers({});
@@ -287,7 +306,7 @@ export default function App() {
           sekolah: activeStudent.sekolah,
           kelas: activeStudent.kelas,
           nama_lengkap: activeStudent.nama,
-          pilihan_lkpd: `LKPD 1-5 | Paket ${packetCode} | Token: ${tokenUjian} | Pelanggaran Tab: ${tabViolations}${isTimeout ? ' (Auto-Timeout)' : ''}`,
+          pilihan_lkpd: `LKPD 1-5 | Paket ${packetCode} | Tanggal: ${examDateKey} | Token: ${tokenUjian} | Pelanggaran Tab: ${tabViolations}${isTimeout ? ' (Auto-Timeout)' : ''}`,
           paket_soal: packetCode,
           durasi_detik: usedSeconds,
           skor_pg_benar: correctCount,
@@ -358,6 +377,7 @@ export default function App() {
       questions,
       answers,
       packetCode,
+      examDateKey,
       tokenUjian,
       tabViolations,
     ]
